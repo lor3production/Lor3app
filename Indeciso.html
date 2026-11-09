@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lor3">
+<title>Lor3 Gestione</title>
+<style>
+*{box-sizing:border-box;font-family:-apple-system,sans-serif}
+body{margin:0;background:#111;color:#eee;padding-bottom:40px}
+header{padding:14px 16px;padding-top:calc(14px + env(safe-area-inset-top));font-size:22px;font-weight:700;background:#1b1b1b}
+nav{position:sticky;top:0;z-index:10;display:flex;overflow-x:auto;gap:6px;padding:8px;background:#1b1b1b;border-bottom:1px solid #333}
+nav button{flex:0 0 auto;background:#2a2a2a;border:0;color:#aaa;padding:10px 14px;border-radius:20px;font-size:15px}
+nav button.on{background:#ff7a00;color:#000;font-weight:700}
+main{padding:12px}
+.card{background:#1e1e1e;border-radius:12px;padding:12px;margin-bottom:10px}
+input,select,textarea{width:100%;padding:10px;margin:4px 0;border-radius:8px;border:1px solid #333;background:#2a2a2a;color:#eee;font-size:16px}
+textarea{min-height:200px}
+.btn{background:#ff7a00;color:#000;border:0;border-radius:8px;padding:10px 14px;font-weight:700;margin:4px 4px 4px 0}
+.del{background:#422;color:#f88}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pos{color:#5d5}.neg{color:#f66}.muted{color:#888;font-size:13px}
+h3{margin:8px 0}
+</style>
+</head>
+<body>
+<header id="title">Idee</header>
+<nav id="nav"></nav>
+<main id="app"></main>
+<script>
+const K='lor3data';
+let D=JSON.parse(localStorage.getItem(K)||'null')||{ideas:[],contents:[],clients:[],money:[],trips:[],
+sectors:['Rally','Pista','Eventi','Aziendale','Altro'],
+quote:'PREVENTIVO – Lor3 Production\n\nCliente: \nProgetto: \nData: \n\nServizi:\n- Riprese (giornate): \n- Montaggio (n. video): \n- Formati (Reel/YouTube): \n- Foto: \n\nTotale: € \nPagamento: 50% all\'ordine, 50% alla consegna\nValidità: 30 giorni'};
+const save=()=>localStorage.setItem(K,JSON.stringify(D));
+const id=()=>Date.now()+''+Math.random().toString(36).slice(2,6);
+const eur=n=>'€ '+(+n||0).toFixed(2);
+const today=()=>new Date().toISOString().slice(0,10);
+const v=i=>document.getElementById(i).value;
+const tabs={Idee:ideas,Contenuti:contents,Clienti:clients,Soldi:money,Spostamenti:trips,Preventivo:quote};
+let cur='Idee';
+function go(t){cur=t;document.getElementById('title').textContent=t;
+document.getElementById('nav').innerHTML=Object.keys(tabs).map(k=>`<button class="${k==cur?'on':''}" onclick="go('${k}')">${k}</button>`).join('');
+document.getElementById('app').innerHTML=tabs[t]();window.scrollTo(0,0);}
+function del(list,i){if(confirm('Eliminare?')){D[list]=D[list].filter(x=>x.id!=i);save();go(cur)}}
+
+function ideas(){return `<div class="card"><input id="it" placeholder="Nuova idea"><textarea id="in" style="min-height:60px" placeholder="Note"></textarea>
+<button class="btn" onclick="D.ideas.unshift({id:id(),t:v('it'),n:v('in')});save();go(cur)">Aggiungi</button></div>`+
+D.ideas.map(x=>`<div class="card"><div class="row"><b>${x.t}</b><button class="btn del" onclick="del('ideas','${x.id}')">✕</button></div><div class="muted">${x.n}</div></div>`).join('')}
+
+function contents(){const cl=D.clients.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+return `<div class="card"><input id="ct" placeholder="Titolo video"><input id="cd" type="date" value="${today()}">
+<select id="cc"><option value="">Cliente…</option>${cl}</select>
+<select id="cs">${D.sectors.map(s=>`<option>${s}</option>`).join('')}</select>
+<input id="cp" type="number" placeholder="Prezzo (vuoto = prezzo cliente)">
+<select id="cst"><option>Da fare</option><option>In lavorazione</option><option>Consegnato</option></select>
+<button class="btn" onclick="addC()">Aggiungi</button></div>`+
+D.contents.map(x=>{const c=D.clients.find(k=>k.id==x.client);return `<div class="card"><div class="row"><b>${x.t}</b><button class="btn del" onclick="del('contents','${x.id}')">✕</button></div>
+<div class="muted">${x.date} · ${c?c.name:'—'} · ${x.sector} · ${eur(x.price)}</div>
+<div class="row"><select onchange="setF('${x.id}','status',this.value)">${['Da fare','In lavorazione','Consegnato'].map(s=>`<option ${s==x.status?'selected':''}>${s}</option>`).join('')}</select>
+<label style="white-space:nowrap"><input type="checkbox" style="width:auto" ${x.paid?'checked':''} onchange="setF('${x.id}','paid',this.checked)"> Pagato</label></div></div>`}).join('')}
+function addC(){const c=D.clients.find(k=>k.id==v('cc'));let p=v('cp');if(p===''&&c&&c.mode=='video')p=c.price;
+D.contents.unshift({id:id(),t:v('ct'),date:v('cd'),client:v('cc'),sector:v('cs'),price:+p||0,status:v('cst'),paid:false});save();go(cur)}
+function setF(i,f,val){D.contents.find(x=>x.id==i)[f]=val;save();go(cur)}
+
+function stats(c){const vids=D.contents.filter(x=>x.client==c.id);let tot,paid;
+if(c.mode=='pacchetto'){tot=+c.price;paid=c.pkgPaid?tot:0}else{tot=vids.reduce((s,x)=>s+x.price,0);paid=vids.filter(x=>x.paid).reduce((s,x)=>s+x.price,0)}
+return{n:vids.length,tot,paid,due:tot-paid,open:vids.filter(x=>x.status!='Consegnato').length}}
+function clients(){const ranked=[...D.clients].sort((a,b)=>stats(b).tot-stats(a).tot);
+const sec=D.sectors.map(s=>{const t=D.contents.filter(x=>x.sector==s).reduce((a,x)=>a+x.price,0);return `<div class="row"><span>${s}</span><span>${eur(t)}</span></div>`}).join('');
+return `<div class="card"><input id="kn" placeholder="Nome cliente"><select id="km"><option value="video">Prezzo a video</option><option value="pacchetto">Pacchetto</option></select>
+<input id="kp" type="number" placeholder="Prezzo concordato"><button class="btn" onclick="D.clients.push({id:id(),name:v('kn'),mode:v('km'),price:+v('kp')||0,pkgPaid:false});save();go(cur)">Aggiungi cliente</button></div>
+<h3>Classifica clienti</h3>`+ranked.map((c,i)=>{const s=stats(c);return `<div class="card"><div class="row"><b>${i+1}. ${c.name}</b><button class="btn del" onclick="del('clients','${c.id}')">✕</button></div>
+<div class="muted">${c.mode=='video'?'A video: '+eur(c.price):'Pacchetto: '+eur(c.price)} · ${s.n} video · ${s.open} da consegnare</div>
+<div class="row"><span>Totale ${eur(s.tot)}</span><span class="pos">Pagato ${eur(s.paid)}</span><span class="neg">Arretrato ${eur(s.due)}</span></div>
+${c.mode=='pacchetto'?`<label><input type="checkbox" style="width:auto" ${c.pkgPaid?'checked':''} onchange="D.clients.find(k=>k.id=='${c.id}').pkgPaid=this.checked;save();go(cur)"> Pacchetto pagato</label>`:''}</div>`}).join('')+
+`<h3>Guadagno per settore</h3><div class="card">${sec}</div>
+<h3>Nomi settori</h3><div class="card">${D.sectors.map((s,i)=>`<input value="${s}" onchange="D.sectors[${i}]=this.value;save()">`).join('')}</div>`}
+
+function money(){const m={};D.money.forEach(x=>{const k=x.date.slice(0,7);m[k]=m[k]||{in:0,out:0};m[k][x.type]+= +x.amt});
+return `<div class="card"><input id="md" type="date" value="${today()}"><input id="mx" placeholder="Descrizione"><input id="ma" type="number" placeholder="Importo">
+<select id="mt"><option value="in">Entrata</option><option value="out">Uscita</option></select>
+<button class="btn" onclick="D.money.unshift({id:id(),date:v('md'),desc:v('mx'),amt:+v('ma')||0,type:v('mt')});save();go(cur)">Aggiungi</button></div>
+<h3>Resoconto mensile</h3>`+Object.keys(m).sort().reverse().map(k=>`<div class="card"><b>${k}</b><div class="row"><span class="pos">+${eur(m[k].in)}</span><span class="neg">-${eur(m[k].out)}</span><b>${eur(m[k].in-m[k].out)}</b></div></div>`).join('')+
+`<h3>Movimenti</h3>`+D.money.map(x=>`<div class="card row"><span>${x.date} · ${x.desc}</span><span class="${x.type=='in'?'pos':'neg'}">${x.type=='in'?'+':'-'}${eur(x.amt)}</span><button class="btn del" onclick="del('money','${x.id}')">✕</button></div>`).join('')}
+
+function trips(){return `<div class="card"><input id="td" type="date" value="${today()}"><input id="tp" placeholder="Dove"><input id="tw" placeholder="Cosa fai">
+<button class="btn" onclick="D.trips.unshift({id:id(),date:v('td'),place:v('tp'),what:v('tw')});save();go(cur)">Aggiungi</button></div>`+
+D.trips.map(x=>`<div class="card"><div class="row"><b>${x.place}</b><button class="btn del" onclick="del('trips','${x.id}')">✕</button></div><div class="muted">${x.date} · ${x.what}</div></div>`).join('')}
+
+function quote(){return `<div class="card"><textarea id="q">${D.quote}</textarea>
+<button class="btn" onclick="D.quote=v('q');save();alert('Salvato')">Salva modello</button>
+<button class="btn" onclick="navigator.clipboard.writeText(v('q'));alert('Copiato')">Copia</button></div>
+<h3>Backup</h3><div class="card"><button class="btn" onclick="exp()">Esporta backup</button>
+<input type="file" accept=".json" onchange="imp(this.files[0])"></div>`}
+function exp(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D)],{type:'application/json'}));a.download='lor3-backup-'+today()+'.json';a.click()}
+function imp(f){const r=new FileReader();r.onload=()=>{if(confirm('Sostituire tutti i dati con il backup?')){D=JSON.parse(r.result);save();go(cur)}};r.readAsText(f)}
+go(cur);
+</script>
+</body>
+</html>
+
